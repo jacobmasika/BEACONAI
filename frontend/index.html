@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>BeaconAI | Public Missing Person Dashboard</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=Chivo:wght@400;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <section class="hero-card">
+        <p class="eyebrow">BeaconAI</p>
+        <h1>Missing Person Help Dashboard</h1>
+        <p class="hero-copy">
+          Report missing people, check possible matches, and share new sightings.
+        </p>
+        <div class="status-row">
+          <span id="networkStatus" class="pill">Checking network...</span>
+          <span id="modelStatus" class="pill warning">System starting...</span>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head">
+          <h2>AI-Enhanced Search</h2>
+        </div>
+        <form id="aiSearchForm">
+          <label>
+            Describe the person (for example, "blue backpack") or upload a photo.
+            <input id="aiSearchTextInput" type="text" placeholder="Describe the person or upload a photo." />
+          </label>
+
+          <label>
+            Upload Photo (optional)
+            <input id="aiSearchPhotoInput" type="file" accept="image/*" />
+          </label>
+
+          <div class="actions">
+            <button id="aiSearchButton" type="submit">Run AI Search</button>
+          </div>
+        </form>
+
+        <div id="aiSearchMeta" class="meta-box">No search yet.</div>
+        <div id="aiSearchResults" class="list"></div>
+      </section>
+
+      <section class="panel">
+        <h2>Report a New Sighting</h2>
+        <form id="sightingForm">
+          <label>
+            Upload Sighting Photo
+            <input id="imageInput" type="file" accept="image/*" required />
+          </label>
+
+          <label>
+            Description
+            <textarea id="descriptionInput" rows="3" placeholder="e.g. Child, green shirt, near bus stop" required></textarea>
+          </label>
+
+          <label>
+            Device Name (optional)
+            <input id="deviceIdInput" type="text" placeholder="field-unit-7" required />
+          </label>
+
+          <div class="actions">
+            <button type="button" id="embedButton">Prepare Photo</button>
+            <button type="submit" id="submitButton" disabled>Send Sighting Report</button>
+          </div>
+        </form>
+
+        <div id="embeddingMeta" class="meta-box">No photo prepared yet.</div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head">
+          <h2>Recent Possible Matches</h2>
+          <button id="refreshMatchesButton" type="button">Refresh List</button>
+        </div>
+        <div id="matchList" class="list"></div>
+      </section>
+
+      <section class="panel public-portal">
+        <div class="panel-head">
+          <h2>Report a Missing Person</h2>
+          <button id="refreshPublicCasesButton" type="button">Refresh Cases</button>
+        </div>
+
+        <p class="hero-copy">
+          Friends and families can submit missing person reports here.
+        </p>
+
+        <form id="publicCaseForm">
+          <label>
+            Your Name
+            <input id="reporterNameInput" type="text" required />
+          </label>
+
+          <label>
+            Your Relationship to the Missing Person
+            <input id="reporterRelationshipInput" type="text" placeholder="e.g. Mother, Friend, Cousin" required />
+          </label>
+
+          <label>
+            Your Contact
+            <input id="reporterContactInput" type="text" placeholder="Phone or email" required />
+          </label>
+
+          <label>
+            Missing Person Name
+            <input id="missingPersonNameInput" type="text" required />
+          </label>
+
+          <label>
+            Upload Missing Person Photo (optional)
+            <input id="missingPersonPhotoInput" type="file" accept="image/*" />
+          </label>
+
+          <img id="missingPersonPhotoPreview" class="photo-preview" alt="Missing person preview" hidden />
+
+          <label>
+            Age (optional)
+            <input id="missingPersonAgeInput" type="number" min="0" />
+          </label>
+
+          <label>
+            Missing Since (optional)
+            <input id="missingSinceInput" type="date" />
+          </label>
+
+          <label>
+            Last Seen Place
+            <input id="lastSeenLocationInput" type="text" required />
+          </label>
+
+          <label>
+            What Happened / Helpful Details
+            <textarea id="circumstancesInput" rows="4" placeholder="Share dates, clothing, places, and any important details." required></textarea>
+          </label>
+
+          <div class="actions">
+            <button id="submitPublicCaseButton" type="submit">Submit Missing Person Report</button>
+          </div>
+        </form>
+
+        <div id="publicCaseMeta" class="meta-box">No case report submitted yet.</div>
+        <div id="publicCaseList" class="list"></div>
+      </section>
+    </main>
+
+    <script type="module" src="app.js"></script>
+  </body>
+</html>

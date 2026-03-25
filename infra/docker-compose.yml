@@ -1,0 +1,22 @@
+version: "3.9"
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: beaconai-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: beaconai
+      POSTGRES_USER: beaconai
+      POSTGRES_PASSWORD: beaconai
+    ports:
+      - "5432:5432"
+    volumes:
+      - beaconai_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U beaconai -d beaconai"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  beaconai_pgdata:
