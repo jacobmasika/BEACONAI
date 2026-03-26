@@ -20,7 +20,7 @@ def create_app() -> Flask:
 
     app.cache_store = SQLiteCacheStore(app.config["SQLITE_CACHE_PATH"])
 
-    # Try PostgreSQL first; fall back to SQLite if unavailable
+    # Try PostgreSQL first; fall back to SQLite if unavailable.
     use_postgres = False
     try:
         from sqlalchemy import text
@@ -32,13 +32,16 @@ def create_app() -> Flask:
         logger.info("Using PostgreSQL backend")
     except Exception as e:
         logger.warning(f"PostgreSQL unavailable ({e}), falling back to SQLite")
-        app.db_backend = "sqlite"
-        app.sqlite_db = SQLiteDB()
 
     if use_postgres:
-        app.db_backend = "postgres"
         with app.app_context():
-            _init_postgres_db(app)
+            initialized = _init_postgres_db(app)
+        if initialized:
+            app.db_backend = "postgres"
+        else:
+            logger.warning("PostgreSQL schema initialization failed, falling back to SQLite")
+            app.db_backend = "sqlite"
+            app.sqlite_db = SQLiteDB()
     else:
         app.db_backend = "sqlite"
         app.sqlite_db = SQLiteDB()
@@ -48,12 +51,18 @@ def create_app() -> Flask:
     return app
 
 
-def _init_postgres_db(app: Flask) -> None:
+def _init_postgres_db(app: Flask) -> bool:
     from sqlalchemy import text
     from . import models  # noqa: F401
 
     try:
-        db.session.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
+        # Some managed Postgres services may restrict CREATE EXTENSION permissions.
+        # We proceed to schema creation and fall back to SQLite if vector types are unavailable.
+        try:
+            db.session.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
+        except Exception as extension_error:
+            logger.warning(f"Could not ensure pgvector extension: {extension_error}")
+
         db.create_all()
 
         # Cosine index improves nearest-neighbor match latency at larger scale.
@@ -68,5 +77,8 @@ def _init_postgres_db(app: Flask) -> None:
         )
         db.session.commit()
         logger.info("PostgreSQL initialization complete")
+        return True
     except Exception as e:
+        db.session.rollback()
         logger.error(f"Failed to initialize PostgreSQL: {e}")
+        return False
