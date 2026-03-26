@@ -229,7 +229,10 @@ def search_missing_persons():
                     "status": row.status,
                     "created_at": row.created_at.isoformat() if row.created_at else None,
                     "government_case_id": None,
-                    "missing_person_photo_data_url": row_payload.get("missing_person_photo_data_url"),
+                    "has_photo": bool(
+                        row_payload.get("missing_person_photo_data_url")
+                        or row_payload.get("missing_person_photo_embedding")
+                    ),
                     "similarity": similarity,
                     "score": (similarity if similarity is not None else 0.0) + keyword_score,
                 }
@@ -355,9 +358,9 @@ def list_public_case_reports():
                     "reporter_relationship": row.reporter_relationship,
                     "reporter_contact": row.reporter_contact,
                     "missing_person_name": row.missing_person_name,
-                    "missing_person_photo_data_url": row.payload.get("missing_person_photo_data_url")
+                    "has_photo": bool(row.payload.get("missing_person_photo_data_url"))
                     if isinstance(row.payload, dict)
-                    else None,
+                    else False,
                     "has_photo_embedding": bool(row.payload.get("missing_person_photo_embedding"))
                     if isinstance(row.payload, dict)
                     else False,

@@ -452,12 +452,10 @@ publicCaseForm.addEventListener("submit", async (event) => {
   event.preventDefault();
 
   const ageValue = missingPersonAgeInput.value.trim();
-  let photoDataUrl = null;
   let photoEmbedding = null;
   const selectedPhoto = missingPersonPhotoInput.files?.[0];
   if (selectedPhoto) {
     try {
-      photoDataUrl = await fileToDataUrl(selectedPhoto);
       const imageModel = await getEmbedder();
       const imageUrl = URL.createObjectURL(selectedPhoto);
       const imageOutput = await imageModel(imageUrl, { pooling: "mean", normalize: true });
@@ -474,7 +472,8 @@ publicCaseForm.addEventListener("submit", async (event) => {
     reporter_relationship: reporterRelationshipInput.value.trim(),
     reporter_contact: reporterContactInput.value.trim(),
     missing_person_name: missingPersonNameInput.value.trim(),
-    missing_person_photo_data_url: photoDataUrl,
+    // Avoid sending raw base64 photos to serverless backend to keep payloads under request limits.
+    missing_person_photo_data_url: null,
     missing_person_photo_embedding: photoEmbedding,
     missing_person_age: ageValue ? Number(ageValue) : null,
     missing_since_iso: missingSinceInput.value ? new Date(missingSinceInput.value).toISOString() : null,
