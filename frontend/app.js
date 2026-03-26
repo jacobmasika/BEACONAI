@@ -503,7 +503,7 @@ publicCaseForm.addEventListener("submit", async (event) => {
   }
 });
 
-missingPersonPhotoInput.addEventListener("change", async () => {
+missingPersonPhotoInput.addEventListener("change", () => {
   const selectedPhoto = missingPersonPhotoInput.files?.[0];
   if (!selectedPhoto) {
     missingPersonPhotoPreview.hidden = true;
@@ -512,8 +512,9 @@ missingPersonPhotoInput.addEventListener("change", async () => {
   }
 
   try {
-    const photoDataUrl = await fileToDataUrl(selectedPhoto);
-    missingPersonPhotoPreview.src = photoDataUrl;
+    // Use object URL instead of base64 conversion for instant preview without data overhead
+    const photoUrl = URL.createObjectURL(selectedPhoto);
+    missingPersonPhotoPreview.src = photoUrl;
     missingPersonPhotoPreview.hidden = false;
   } catch {
     missingPersonPhotoPreview.hidden = true;
