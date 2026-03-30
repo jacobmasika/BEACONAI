@@ -214,7 +214,17 @@ async function renderMatches() {
 
   try {
     const response = await fetch(`${API_BASE}/matches?limit=10`);
-    const data = await response.json();
+    const responseText = await response.text();
+    let data;
+    try {
+      data = responseText ? JSON.parse(responseText) : {};
+    } catch {
+      data = { error: responseText || "Unexpected API response" };
+    }
+
+    if (!response.ok) {
+      throw new Error(data.error || `Could not load matches (${response.status})`);
+    }
 
     if (!data.matches || !data.matches.length) {
       matchListEl.textContent = "No possible matches yet.";
@@ -233,7 +243,7 @@ async function renderMatches() {
       matchListEl.appendChild(row);
     });
   } catch (error) {
-    matchListEl.textContent = "Could not load possible matches.";
+    matchListEl.textContent = error.message || "Could not load possible matches.";
   }
 }
 
@@ -323,7 +333,18 @@ async function postPublicCaseEmbeddingReindex(reportId, embedding) {
 
 async function ensurePublicCasePhotoEmbeddings() {
   const response = await fetch(`${API_BASE}/public/cases?limit=200`);
-  const data = await response.json();
+  const responseText = await response.text();
+  let data;
+  try {
+    data = responseText ? JSON.parse(responseText) : {};
+  } catch {
+    data = { error: responseText || "Unexpected API response" };
+  }
+
+  if (!response.ok) {
+    throw new Error(data.error || `Could not load case reports (${response.status})`);
+  }
+
   const cases = Array.isArray(data.cases) ? data.cases : [];
 
   const pending = cases.filter(
@@ -356,7 +377,17 @@ async function renderPublicCases() {
 
   try {
     const response = await fetch(`${API_BASE}/public/cases?limit=10`);
-    const data = await response.json();
+    const responseText = await response.text();
+    let data;
+    try {
+      data = responseText ? JSON.parse(responseText) : {};
+    } catch {
+      data = { error: responseText || "Unexpected API response" };
+    }
+
+    if (!response.ok) {
+      throw new Error(data.error || `Could not load case reports (${response.status})`);
+    }
 
     if (!data.cases || !data.cases.length) {
       publicCaseListEl.textContent = "No case reports yet.";
@@ -382,7 +413,7 @@ async function renderPublicCases() {
       publicCaseListEl.appendChild(row);
     });
   } catch (error) {
-    publicCaseListEl.textContent = "Could not load case reports.";
+    publicCaseListEl.textContent = error.message || "Could not load case reports.";
   }
 }
 

@@ -1,4 +1,5 @@
 import logging
+import os
 from flask import Flask
 from flask_cors import CORS
 
@@ -15,6 +16,7 @@ logger = logging.getLogger(__name__)
 def create_app() -> Flask:
     app = Flask(__name__)
     app.config.from_object(Config)
+    app.is_vercel = bool(os.getenv("VERCEL"))
 
     CORS(app)
 
@@ -31,7 +33,15 @@ def create_app() -> Flask:
         use_postgres = True
         logger.info("Using PostgreSQL backend")
     except Exception as e:
-        logger.warning(f"PostgreSQL unavailable ({e}), falling back to SQLite")
+        if app.is_vercel:
+            app.db_backend = "unavailable"
+            app.db_backend_error = str(e)
+            logger.error(
+                "PostgreSQL unavailable on Vercel (%s). Refusing SQLite fallback; configure DATABASE_URL for persistent storage.",
+                e,
+            )
+        else:
+            logger.warning(f"PostgreSQL unavailable ({e}), falling back to SQLite")
 
     if use_postgres:
         with app.app_context():
@@ -39,10 +49,17 @@ def create_app() -> Flask:
         if initialized:
             app.db_backend = "postgres"
         else:
-            logger.warning("PostgreSQL schema initialization failed, falling back to SQLite")
-            app.db_backend = "sqlite"
-            app.sqlite_db = SQLiteDB()
-    else:
+            if app.is_vercel:
+                app.db_backend = "unavailable"
+                app.db_backend_error = "PostgreSQL schema initialization failed"
+                logger.error(
+                    "PostgreSQL schema initialization failed on Vercel. Refusing SQLite fallback; configure DATABASE_URL and pgvector."
+                )
+            else:
+                logger.warning("PostgreSQL schema initialization failed, falling back to SQLite")
+                app.db_backend = "sqlite"
+                app.sqlite_db = SQLiteDB()
+    elif not hasattr(app, "db_backend"):
         app.db_backend = "sqlite"
         app.sqlite_db = SQLiteDB()
 

@@ -168,7 +168,8 @@ Use a hosted PostgreSQL instance with pgvector enabled (for example Neon or Supa
 ### 4) Notes
 
 - Vercel filesystem is ephemeral/read-only except `/tmp`.
-- SQLite fallback uses `/tmp/beaconai_cache.db` when running on Vercel.
+- Authoritative app data requires managed PostgreSQL + pgvector on Vercel. If `DATABASE_URL` is missing or invalid, API endpoints return `503` with guidance.
+- Vercel provider URLs like `postgresql://...` and `postgres://...` are normalized to `postgresql+psycopg://...` automatically.
 
 ## Hackathon Assets
 - Submission checklist: `docs/hackathon/submission-checklist.md`

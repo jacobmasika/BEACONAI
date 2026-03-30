@@ -15,11 +15,25 @@ DEFAULT_SQLITE_CACHE = (
 )
 
 
+def _normalize_database_url(raw_url: str | None) -> str:
+    """Normalize provider URLs to a SQLAlchemy psycopg v3 URI."""
+    if not raw_url:
+        return "postgresql+psycopg://beaconai:beaconai@localhost:5432/beaconai"
+
+    normalized = raw_url.strip()
+
+    # Vercel/Supabase/Neon often provide postgresql:// or postgres:// URLs.
+    # SQLAlchemy may default those to psycopg2 unless the dialect is explicit.
+    if normalized.startswith("postgresql://"):
+        return "postgresql+psycopg://" + normalized[len("postgresql://") :]
+    if normalized.startswith("postgres://"):
+        return "postgresql+psycopg://" + normalized[len("postgres://") :]
+
+    return normalized
+
+
 class Config:
-    SQLALCHEMY_DATABASE_URI = os.getenv(
-        "DATABASE_URL",
-        "postgresql+psycopg://beaconai:beaconai@localhost:5432/beaconai",
-    )
+    SQLALCHEMY_DATABASE_URI = _normalize_database_url(os.getenv("DATABASE_URL"))
     SQLALCHEMY_TRACK_MODIFICATIONS = False
 
     SQLITE_CACHE_PATH = os.getenv("SQLITE_CACHE_PATH", str(DEFAULT_SQLITE_CACHE))

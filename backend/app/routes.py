@@ -22,6 +22,22 @@ def _validate_embedding(embedding: list[float], dims: int) -> bool:
     )
 
 
+def _backend_unavailable_response():
+    error_detail = getattr(current_app, "db_backend_error", None)
+    payload = {
+        "error": "Database backend unavailable. On Vercel, configure DATABASE_URL to a managed PostgreSQL instance with pgvector.",
+    }
+    if error_detail:
+        payload["detail"] = error_detail
+    return jsonify(payload), 503
+
+
+def _require_backend_available():
+    if getattr(current_app, "db_backend", None) == "unavailable":
+        return _backend_unavailable_response()
+    return None
+
+
 @api_bp.get("/health")
 def health_check():
     backend = current_app.db_backend if hasattr(current_app, "db_backend") else "unknown"
@@ -52,6 +68,10 @@ def _validate_public_case_payload(payload: dict, vector_dims: int = 512) -> str 
 
 @api_bp.post("/search/missing")
 def search_missing_persons():
+    backend_guard = _require_backend_available()
+    if backend_guard:
+        return backend_guard
+
     payload = request.get_json(silent=True) or {}
     query_text = (payload.get("description") or "").strip()
     embedding = payload.get("embedding")
@@ -252,6 +272,10 @@ def search_missing_persons():
 
 @api_bp.post("/public/cases/reindex-embedding")
 def reindex_public_case_embedding():
+    backend_guard = _require_backend_available()
+    if backend_guard:
+        return backend_guard
+
     payload = request.get_json(silent=True) or {}
     report_id = payload.get("report_id")
     embedding = payload.get("embedding")
@@ -289,6 +313,10 @@ def reindex_public_case_embedding():
 
 @api_bp.post("/public/cases")
 def submit_public_case_report():
+    backend_guard = _require_backend_available()
+    if backend_guard:
+        return backend_guard
+
     payload = request.get_json(silent=True) or {}
     validation_error = _validate_public_case_payload(payload, current_app.config["VECTOR_DIMENSIONS"])
     if validation_error:
@@ -338,6 +366,10 @@ def submit_public_case_report():
 
 @api_bp.get("/public/cases")
 def list_public_case_reports():
+    backend_guard = _require_backend_available()
+    if backend_guard:
+        return backend_guard
+
     limit = int(request.args.get("limit", "20"))
 
     try:
@@ -380,6 +412,10 @@ def list_public_case_reports():
 
 @api_bp.post("/sighting")
 def create_sighting():
+    backend_guard = _require_backend_available()
+    if backend_guard:
+        return backend_guard
+
     payload = request.get_json(silent=True) or {}
 
     embedding = payload.get("embedding")
@@ -516,6 +552,10 @@ def _create_sighting_postgres(sighting_payload: dict, embedding: list[float], th
 
 @api_bp.get("/matches")
 def get_matches():
+    backend_guard = _require_backend_available()
+    if backend_guard:
+        return backend_guard
+
     limit = int(request.args.get("limit", "20"))
 
     try:
@@ -564,6 +604,10 @@ def get_matches():
 
 @api_bp.post("/seed/missing")
 def seed_missing_records():
+    backend_guard = _require_backend_available()
+    if backend_guard:
+        return backend_guard
+
     data = request.get_json(silent=True) or {}
     records = data.get("records", [])
 
