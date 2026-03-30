@@ -65,7 +65,7 @@ def create_app() -> Flask:
             app.db_backend = "postgres"
         else:
             if app.is_vercel:
-                reason = "PostgreSQL schema initialization failed"
+                reason = getattr(app, "db_backend_error", None) or "PostgreSQL schema initialization failed"
                 if _vercel_sqlite_fallback_allowed():
                     _enable_sqlite_fallback(app, reason)
                 else:
