@@ -35,7 +35,10 @@
 
           <label>
             Upload Photo (optional)
-            <input id="aiSearchPhotoInput" type="file" accept="image/*" />
+            <div class="file-input-row">
+              <input id="aiSearchPhotoInput" type="file" accept="image/*" />
+              <button id="clearAiSearchPhotoButton" class="remove-photo-btn" type="button" aria-label="Remove search photo" hidden>&times;</button>
+            </div>
           </label>
 
           <div class="actions">
@@ -52,7 +55,10 @@
         <form id="sightingForm">
           <label>
             Upload Sighting Photo
-            <input id="imageInput" type="file" accept="image/*" required />
+            <div class="file-input-row">
+              <input id="imageInput" type="file" accept="image/*" required />
+              <button id="clearSightingPhotoButton" class="remove-photo-btn" type="button" aria-label="Remove sighting photo" hidden>&times;</button>
+            </div>
           </label>
 
           <label>
@@ -115,10 +121,16 @@
 
           <label>
             Upload Missing Person Photo (optional)
-            <input id="missingPersonPhotoInput" type="file" accept="image/*" />
+            <div class="file-input-row">
+              <input id="missingPersonPhotoInput" type="file" accept="image/*" />
+              <button id="clearMissingPersonPhotoButton" class="remove-photo-btn" type="button" aria-label="Remove missing person photo" hidden>&times;</button>
+            </div>
           </label>
 
-          <img id="missingPersonPhotoPreview" class="photo-preview" alt="Missing person preview" hidden />
+          <div id="missingPersonPhotoPreviewWrap" class="photo-preview-wrap" hidden>
+            <button id="removePreviewPhotoButton" class="preview-remove-btn" type="button" aria-label="Remove selected photo">&times;</button>
+            <img id="missingPersonPhotoPreview" class="photo-preview" alt="Missing person preview" />
+          </div>
 
           <label>
             Age (optional)

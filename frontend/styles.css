@@ -98,6 +98,49 @@ button {
   font: inherit;
 }
 
+.file-input-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.file-input-row input[type="file"] {
+  flex: 1;
+}
+
+.remove-photo-btn,
+.preview-remove-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 103, 121, 0.55);
+  background: rgba(255, 103, 121, 0.2);
+  color: #ffdce2;
+  font-size: 1.2rem;
+  font-weight: 700;
+  line-height: 1;
+  padding: 0;
+  cursor: pointer;
+}
+
+.remove-photo-btn:hover,
+.preview-remove-btn:hover {
+  background: rgba(255, 103, 121, 0.3);
+}
+
+.photo-preview-wrap {
+  position: relative;
+  width: min(240px, 100%);
+  margin-top: 8px;
+}
+
+.preview-remove-btn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 2;
+}
+
 input,
 textarea {
   border: 1px solid rgba(179, 238, 255, 0.3);
@@ -171,6 +214,11 @@ button:disabled {
   border: 1px solid rgba(151, 183, 199, 0.35);
   background: rgba(3, 18, 24, 0.55);
   object-fit: cover;
+}
+
+.photo-preview-wrap .photo-preview {
+  width: 100%;
+  margin-top: 0;
 }
 
 .confidence-badge {

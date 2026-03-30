@@ -37,9 +37,11 @@ const aiSearchResultsEl = document.getElementById("aiSearchResults");
 const aiSearchForm = document.getElementById("aiSearchForm");
 const aiSearchTextInput = document.getElementById("aiSearchTextInput");
 const aiSearchPhotoInput = document.getElementById("aiSearchPhotoInput");
+const clearAiSearchPhotoButton = document.getElementById("clearAiSearchPhotoButton");
 
 const sightingForm = document.getElementById("sightingForm");
 const imageInput = document.getElementById("imageInput");
+const clearSightingPhotoButton = document.getElementById("clearSightingPhotoButton");
 const descriptionInput = document.getElementById("descriptionInput");
 const deviceIdInput = document.getElementById("deviceIdInput");
 const embedButton = document.getElementById("embedButton");
@@ -54,6 +56,9 @@ const reporterContactInput = document.getElementById("reporterContactInput");
 const missingPersonNameInput = document.getElementById("missingPersonNameInput");
 const missingPersonPhotoInput = document.getElementById("missingPersonPhotoInput");
 const missingPersonPhotoPreview = document.getElementById("missingPersonPhotoPreview");
+const missingPersonPhotoPreviewWrap = document.getElementById("missingPersonPhotoPreviewWrap");
+const clearMissingPersonPhotoButton = document.getElementById("clearMissingPersonPhotoButton");
+const removePreviewPhotoButton = document.getElementById("removePreviewPhotoButton");
 const missingPersonAgeInput = document.getElementById("missingPersonAgeInput");
 const missingSinceInput = document.getElementById("missingSinceInput");
 const lastSeenLocationInput = document.getElementById("lastSeenLocationInput");
@@ -169,6 +174,9 @@ function resetSightingFormState() {
   imageInput.value = "";
   descriptionInput.value = "";
   submitButton.disabled = true;
+  if (clearSightingPhotoButton) {
+    clearSightingPhotoButton.hidden = true;
+  }
 }
 
 function clearPublicCasePreview() {
@@ -176,9 +184,31 @@ function clearPublicCasePreview() {
     URL.revokeObjectURL(state.publicCasePreviewUrl);
     state.publicCasePreviewUrl = null;
   }
-  missingPersonPhotoPreview.hidden = true;
+  if (missingPersonPhotoPreviewWrap) {
+    missingPersonPhotoPreviewWrap.hidden = true;
+  }
   missingPersonPhotoPreview.removeAttribute("src");
   missingPersonPhotoInput.value = "";
+  if (clearMissingPersonPhotoButton) {
+    clearMissingPersonPhotoButton.hidden = true;
+  }
+}
+
+function clearAiSearchPhotoSelection() {
+  aiSearchPhotoInput.value = "";
+  if (clearAiSearchPhotoButton) {
+    clearAiSearchPhotoButton.hidden = true;
+  }
+}
+
+function clearSightingPhotoSelection() {
+  imageInput.value = "";
+  state.currentEmbedding = null;
+  submitButton.disabled = true;
+  embeddingMetaEl.textContent = "Photo removed. Please upload a new photo.";
+  if (clearSightingPhotoButton) {
+    clearSightingPhotoButton.hidden = true;
+  }
 }
 
 function normalizeEmbedding(rawOutput) {
@@ -668,8 +698,13 @@ missingPersonPhotoInput.addEventListener("change", () => {
 
   const selectedPhoto = missingPersonPhotoInput.files?.[0];
   if (!selectedPhoto) {
-    missingPersonPhotoPreview.hidden = true;
+    if (missingPersonPhotoPreviewWrap) {
+      missingPersonPhotoPreviewWrap.hidden = true;
+    }
     missingPersonPhotoPreview.removeAttribute("src");
+    if (clearMissingPersonPhotoButton) {
+      clearMissingPersonPhotoButton.hidden = true;
+    }
     return;
   }
 
@@ -678,11 +713,46 @@ missingPersonPhotoInput.addEventListener("change", () => {
     const photoUrl = URL.createObjectURL(selectedPhoto);
     state.publicCasePreviewUrl = photoUrl;
     missingPersonPhotoPreview.src = photoUrl;
-    missingPersonPhotoPreview.hidden = false;
+    if (missingPersonPhotoPreviewWrap) {
+      missingPersonPhotoPreviewWrap.hidden = false;
+    }
+    if (clearMissingPersonPhotoButton) {
+      clearMissingPersonPhotoButton.hidden = false;
+    }
   } catch {
-    missingPersonPhotoPreview.hidden = true;
+    if (missingPersonPhotoPreviewWrap) {
+      missingPersonPhotoPreviewWrap.hidden = true;
+    }
     missingPersonPhotoPreview.removeAttribute("src");
     publicCaseMetaEl.textContent = "Could not preview the selected photo.";
+  }
+});
+
+if (clearMissingPersonPhotoButton) {
+  clearMissingPersonPhotoButton.addEventListener("click", clearPublicCasePreview);
+}
+
+if (removePreviewPhotoButton) {
+  removePreviewPhotoButton.addEventListener("click", clearPublicCasePreview);
+}
+
+if (clearSightingPhotoButton) {
+  clearSightingPhotoButton.addEventListener("click", clearSightingPhotoSelection);
+}
+
+imageInput.addEventListener("change", () => {
+  if (clearSightingPhotoButton) {
+    clearSightingPhotoButton.hidden = !imageInput.files?.length;
+  }
+});
+
+if (clearAiSearchPhotoButton) {
+  clearAiSearchPhotoButton.addEventListener("click", clearAiSearchPhotoSelection);
+}
+
+aiSearchPhotoInput.addEventListener("change", () => {
+  if (clearAiSearchPhotoButton) {
+    clearAiSearchPhotoButton.hidden = !aiSearchPhotoInput.files?.length;
   }
 });
 
