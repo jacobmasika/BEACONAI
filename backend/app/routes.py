@@ -41,7 +41,10 @@ def _require_backend_available():
 @api_bp.get("/health")
 def health_check():
     backend = current_app.db_backend if hasattr(current_app, "db_backend") else "unknown"
-    return jsonify({"ok": True, "service": "BeaconAI API", "db_backend": backend})
+    payload = {"ok": True, "service": "BeaconAI API", "db_backend": backend}
+    if getattr(current_app, "db_backend_error", None):
+        payload["detail"] = current_app.db_backend_error
+    return jsonify(payload)
 
 
 def _validate_public_case_payload(payload: dict, vector_dims: int = 512) -> str | None:

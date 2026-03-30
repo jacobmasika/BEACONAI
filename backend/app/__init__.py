@@ -13,6 +13,17 @@ from .routes import api_bp
 logger = logging.getLogger(__name__)
 
 
+def _vercel_sqlite_fallback_allowed() -> bool:
+    return os.getenv("VERCEL_ALLOW_SQLITE_FALLBACK", "1").strip().lower() not in {"0", "false", "no"}
+
+
+def _enable_sqlite_fallback(app: Flask, reason: str) -> None:
+    app.db_backend = "sqlite"
+    app.db_backend_error = reason
+    app.sqlite_db = SQLiteDB()
+    logger.warning("Using SQLite fallback backend (%s)", reason)
+
+
 def create_app() -> Flask:
     app = Flask(__name__)
     app.config.from_object(Config)
@@ -34,12 +45,16 @@ def create_app() -> Flask:
         logger.info("Using PostgreSQL backend")
     except Exception as e:
         if app.is_vercel:
-            app.db_backend = "unavailable"
-            app.db_backend_error = str(e)
-            logger.error(
-                "PostgreSQL unavailable on Vercel (%s). Refusing SQLite fallback; configure DATABASE_URL for persistent storage.",
-                e,
-            )
+            reason = f"PostgreSQL unavailable on Vercel: {e}"
+            if _vercel_sqlite_fallback_allowed():
+                _enable_sqlite_fallback(app, reason)
+            else:
+                app.db_backend = "unavailable"
+                app.db_backend_error = str(e)
+                logger.error(
+                    "PostgreSQL unavailable on Vercel (%s). Refusing SQLite fallback; configure DATABASE_URL for persistent storage.",
+                    e,
+                )
         else:
             logger.warning(f"PostgreSQL unavailable ({e}), falling back to SQLite")
 
@@ -50,11 +65,15 @@ def create_app() -> Flask:
             app.db_backend = "postgres"
         else:
             if app.is_vercel:
-                app.db_backend = "unavailable"
-                app.db_backend_error = "PostgreSQL schema initialization failed"
-                logger.error(
-                    "PostgreSQL schema initialization failed on Vercel. Refusing SQLite fallback; configure DATABASE_URL and pgvector."
-                )
+                reason = "PostgreSQL schema initialization failed"
+                if _vercel_sqlite_fallback_allowed():
+                    _enable_sqlite_fallback(app, reason)
+                else:
+                    app.db_backend = "unavailable"
+                    app.db_backend_error = reason
+                    logger.error(
+                        "PostgreSQL schema initialization failed on Vercel. Refusing SQLite fallback; configure DATABASE_URL and pgvector."
+                    )
             else:
                 logger.warning("PostgreSQL schema initialization failed, falling back to SQLite")
                 app.db_backend = "sqlite"
