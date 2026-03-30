@@ -32,8 +32,19 @@ def _normalize_database_url(raw_url: str | None) -> str:
     return normalized
 
 
+def _resolve_database_url_from_env() -> str:
+    """Resolve database URL from common env vars in hosted/serverless providers."""
+    candidate = (
+        os.getenv("DATABASE_URL")
+        or os.getenv("POSTGRES_URL_NON_POOLING")
+        or os.getenv("POSTGRES_URL")
+        or os.getenv("POSTGRES_PRISMA_URL")
+    )
+    return _normalize_database_url(candidate)
+
+
 class Config:
-    SQLALCHEMY_DATABASE_URI = _normalize_database_url(os.getenv("DATABASE_URL"))
+    SQLALCHEMY_DATABASE_URI = _resolve_database_url_from_env()
     SQLALCHEMY_TRACK_MODIFICATIONS = False
 
     SQLITE_CACHE_PATH = os.getenv("SQLITE_CACHE_PATH", str(DEFAULT_SQLITE_CACHE))
