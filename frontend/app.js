@@ -22,6 +22,7 @@ const STORED_PHOTO_QUALITY = 0.78;
 const state = {
   embedder: null,
   currentEmbedding: null,
+  publicCasePreviewUrl: null,
 };
 
 const networkStatusEl = document.getElementById("networkStatus");
@@ -161,6 +162,23 @@ async function resizeImageForStorage(file, maxEdge = STORED_PHOTO_MAX_EDGE, qual
   } finally {
     URL.revokeObjectURL(objectUrl);
   }
+}
+
+function resetSightingFormState() {
+  state.currentEmbedding = null;
+  imageInput.value = "";
+  descriptionInput.value = "";
+  submitButton.disabled = true;
+}
+
+function clearPublicCasePreview() {
+  if (state.publicCasePreviewUrl) {
+    URL.revokeObjectURL(state.publicCasePreviewUrl);
+    state.publicCasePreviewUrl = null;
+  }
+  missingPersonPhotoPreview.hidden = true;
+  missingPersonPhotoPreview.removeAttribute("src");
+  missingPersonPhotoInput.value = "";
 }
 
 function normalizeEmbedding(rawOutput) {
@@ -563,15 +581,18 @@ sightingForm.addEventListener("submit", async (event) => {
     if (!navigator.onLine) {
       await savePending(payload);
       embeddingMetaEl.textContent = "You are offline. We saved this report and will send it when connection returns.";
+      resetSightingFormState();
       return;
     }
 
     const result = await postSighting(payload);
     embeddingMetaEl.textContent = `Report sent. Status: ${result.status || "received"}`;
+    resetSightingFormState();
     await renderMatches();
   } catch (error) {
     await savePending(payload);
     embeddingMetaEl.textContent = "Connection was unstable. We saved this report and will try again automatically.";
+    resetSightingFormState();
   }
 });
 
@@ -632,6 +653,7 @@ publicCaseForm.addEventListener("submit", async (event) => {
     const result = await postPublicCase(payload);
     publicCaseMetaEl.textContent = `Case report submitted. Reference ID: ${result.report_id}`;
     publicCaseForm.reset();
+    clearPublicCasePreview();
     await renderPublicCases();
   } catch (error) {
     publicCaseMetaEl.textContent = error.message || "Could not submit case report.";
@@ -639,6 +661,11 @@ publicCaseForm.addEventListener("submit", async (event) => {
 });
 
 missingPersonPhotoInput.addEventListener("change", () => {
+  if (state.publicCasePreviewUrl) {
+    URL.revokeObjectURL(state.publicCasePreviewUrl);
+    state.publicCasePreviewUrl = null;
+  }
+
   const selectedPhoto = missingPersonPhotoInput.files?.[0];
   if (!selectedPhoto) {
     missingPersonPhotoPreview.hidden = true;
@@ -649,6 +676,7 @@ missingPersonPhotoInput.addEventListener("change", () => {
   try {
     // Use object URL instead of base64 conversion for instant preview without data overhead
     const photoUrl = URL.createObjectURL(selectedPhoto);
+    state.publicCasePreviewUrl = photoUrl;
     missingPersonPhotoPreview.src = photoUrl;
     missingPersonPhotoPreview.hidden = false;
   } catch {
