@@ -96,25 +96,35 @@ def _init_postgres_db(app: Flask) -> bool:
         # We proceed to schema creation and fall back to SQLite if vector types are unavailable.
         try:
             db.session.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
+            db.session.commit()
         except Exception as extension_error:
+            db.session.rollback()
             logger.warning(f"Could not ensure pgvector extension: {extension_error}")
 
         db.create_all()
+        db.session.commit()
 
         # Cosine index improves nearest-neighbor match latency at larger scale.
-        db.session.execute(
-            text(
-                """
-                CREATE INDEX IF NOT EXISTS idx_missing_persons_embedding_cosine
-                ON missing_persons USING ivfflat (embedding vector_cosine_ops)
-                WITH (lists = 100)
-                """
+        try:
+            db.session.execute(
+                text(
+                    """
+                    CREATE INDEX IF NOT EXISTS idx_missing_persons_embedding_cosine
+                    ON missing_persons USING ivfflat (embedding vector_cosine_ops)
+                    WITH (lists = 100)
+                    """
+                )
             )
-        )
-        db.session.commit()
+            db.session.commit()
+        except Exception as index_error:
+            # Do not fail startup if ANN index creation is unavailable.
+            db.session.rollback()
+            logger.warning(f"Could not create ivfflat index: {index_error}")
+
         logger.info("PostgreSQL initialization complete")
         return True
     except Exception as e:
         db.session.rollback()
+        app.db_backend_error = str(e)
         logger.error(f"Failed to initialize PostgreSQL: {e}")
         return False
