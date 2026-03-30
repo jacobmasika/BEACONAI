@@ -14,6 +14,10 @@ const API_BASE = (() => {
 const DB_NAME = "beaconai-local";
 const STORE_NAME = "pending-sightings";
 const VECTOR_DIMENSIONS = 512;
+const MODEL_LOAD_TIMEOUT_MS = 15000;
+const MODEL_INFERENCE_TIMEOUT_MS = 12000;
+const STORED_PHOTO_MAX_EDGE = 768;
+const STORED_PHOTO_QUALITY = 0.78;
 
 const state = {
   embedder: null,
@@ -66,6 +70,97 @@ async function fileToDataUrl(file) {
     reader.onerror = () => reject(new Error("Could not read selected photo"));
     reader.readAsDataURL(file);
   });
+}
+
+function withTimeout(promise, timeoutMs, message) {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(message)), timeoutMs);
+    promise
+      .then((value) => {
+        clearTimeout(timer);
+        resolve(value);
+      })
+      .catch((error) => {
+        clearTimeout(timer);
+        reject(error);
+      });
+  });
+}
+
+function normalizeVector(values) {
+  const magnitude = Math.sqrt(values.reduce((sum, value) => sum + value * value, 0));
+  if (!magnitude) {
+    return values;
+  }
+  return values.map((value) => value / magnitude);
+}
+
+async function buildFallbackEmbeddingFromFile(file) {
+  if (!window.crypto?.subtle) {
+    throw new Error("Fallback embedding unavailable in this browser");
+  }
+
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  const digest = new Uint8Array(await window.crypto.subtle.digest("SHA-256", bytes));
+  const vector = Array.from({ length: VECTOR_DIMENSIONS }, (_, index) => (digest[index % digest.length] / 127.5) - 1);
+  return normalizeVector(vector);
+}
+
+async function createEmbeddingFromFile(file, { allowFallback = true } = {}) {
+  try {
+    const model = await withTimeout(getEmbedder(), MODEL_LOAD_TIMEOUT_MS, "Photo tool timed out while loading");
+    const imageUrl = URL.createObjectURL(file);
+    try {
+      const output = await withTimeout(
+        model(imageUrl, { pooling: "mean", normalize: true }),
+        MODEL_INFERENCE_TIMEOUT_MS,
+        "Photo tool timed out while processing the image"
+      );
+      return { embedding: normalizeEmbedding(output), method: "model" };
+    } finally {
+      URL.revokeObjectURL(imageUrl);
+    }
+  } catch (error) {
+    if (!allowFallback) {
+      throw error;
+    }
+
+    const embedding = await buildFallbackEmbeddingFromFile(file);
+    modelStatusEl.textContent = "Photo tool slow. Using fallback embedding.";
+    modelStatusEl.className = "pill warning";
+    return { embedding, method: "fallback" };
+  }
+}
+
+async function resizeImageForStorage(file, maxEdge = STORED_PHOTO_MAX_EDGE, quality = STORED_PHOTO_QUALITY) {
+  const objectUrl = URL.createObjectURL(file);
+  try {
+    const image = await new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => resolve(img);
+      img.onerror = () => reject(new Error("Could not decode selected photo"));
+      img.src = objectUrl;
+    });
+
+    const width = image.naturalWidth || image.width;
+    const height = image.naturalHeight || image.height;
+    const scale = Math.min(1, maxEdge / Math.max(width, height));
+    const targetWidth = Math.max(1, Math.round(width * scale));
+    const targetHeight = Math.max(1, Math.round(height * scale));
+
+    const canvas = document.createElement("canvas");
+    canvas.width = targetWidth;
+    canvas.height = targetHeight;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) {
+      throw new Error("Could not initialize photo canvas");
+    }
+
+    ctx.drawImage(image, 0, 0, targetWidth, targetHeight);
+    return canvas.toDataURL("image/jpeg", quality);
+  } finally {
+    URL.revokeObjectURL(objectUrl);
+  }
 }
 
 function normalizeEmbedding(rawOutput) {
@@ -360,7 +455,11 @@ async function ensurePublicCasePhotoEmbeddings() {
 
   for (const item of pending) {
     try {
-      const output = await model(item.missing_person_photo_data_url, { pooling: "mean", normalize: true });
+      const output = await withTimeout(
+        model(item.missing_person_photo_data_url, { pooling: "mean", normalize: true }),
+        MODEL_INFERENCE_TIMEOUT_MS,
+        "Backfill embedding timeout"
+      );
       const embedding = normalizeEmbedding(output);
       await postPublicCaseEmbeddingReindex(item.report_id, embedding);
       updated += 1;
@@ -424,17 +523,14 @@ embedButton.addEventListener("click", async () => {
   }
 
   try {
-    const model = await getEmbedder();
     const imageFile = imageInput.files[0];
-    const imageUrl = URL.createObjectURL(imageFile);
-
-    const output = await model(imageUrl, { pooling: "mean", normalize: true });
-    URL.revokeObjectURL(imageUrl);
-
-    const embedding = normalizeEmbedding(output);
+    const { embedding, method } = await createEmbeddingFromFile(imageFile, { allowFallback: true });
     state.currentEmbedding = embedding;
 
-    embeddingMetaEl.textContent = "Photo is ready to send.";
+    embeddingMetaEl.textContent =
+      method === "fallback"
+        ? "Photo ready with fallback embedding. You can still send now."
+        : "Photo is ready to send.";
     submitButton.disabled = false;
   } catch (error) {
     console.error(error);
@@ -483,18 +579,27 @@ publicCaseForm.addEventListener("submit", async (event) => {
   event.preventDefault();
 
   const ageValue = missingPersonAgeInput.value.trim();
+  let photoDataUrl = null;
   let photoEmbedding = null;
   const selectedPhoto = missingPersonPhotoInput.files?.[0];
   if (selectedPhoto) {
     try {
-      const imageModel = await getEmbedder();
-      const imageUrl = URL.createObjectURL(selectedPhoto);
-      const imageOutput = await imageModel(imageUrl, { pooling: "mean", normalize: true });
-      URL.revokeObjectURL(imageUrl);
-      photoEmbedding = normalizeEmbedding(imageOutput);
+      photoDataUrl = await resizeImageForStorage(selectedPhoto);
     } catch (error) {
       publicCaseMetaEl.textContent = "Could not read the selected photo.";
       return;
+    }
+
+    try {
+      const { embedding, method } = await createEmbeddingFromFile(selectedPhoto, { allowFallback: true });
+      photoEmbedding = embedding;
+      if (method === "fallback") {
+        publicCaseMetaEl.textContent = "Photo attached. Using fallback embedding due model delay.";
+      }
+    } catch {
+      // Do not block report submission when model inference is unavailable.
+      photoEmbedding = null;
+      publicCaseMetaEl.textContent = "Photo attached. AI embedding unavailable, but report can still be submitted.";
     }
   }
 
@@ -503,8 +608,7 @@ publicCaseForm.addEventListener("submit", async (event) => {
     reporter_relationship: reporterRelationshipInput.value.trim(),
     reporter_contact: reporterContactInput.value.trim(),
     missing_person_name: missingPersonNameInput.value.trim(),
-    // Avoid sending raw base64 photos to serverless backend to keep payloads under request limits.
-    missing_person_photo_data_url: null,
+    missing_person_photo_data_url: photoDataUrl,
     missing_person_photo_embedding: photoEmbedding,
     missing_person_age: ageValue ? Number(ageValue) : null,
     missing_since_iso: missingSinceInput.value ? new Date(missingSinceInput.value).toISOString() : null,
@@ -569,17 +673,11 @@ aiSearchForm.addEventListener("submit", async (event) => {
 
   try {
     if (searchPhoto) {
-      aiSearchMetaEl.textContent = "Getting reported case photos ready...";
-      const updated = await ensurePublicCasePhotoEmbeddings();
-      if (updated > 0) {
-        aiSearchMetaEl.textContent = `Indexed ${updated} reported case photo(s). Running AI search...`;
+      const { embedding: preparedEmbedding, method } = await createEmbeddingFromFile(searchPhoto, { allowFallback: true });
+      embedding = preparedEmbedding;
+      if (method === "fallback") {
+        aiSearchMetaEl.textContent = "Running AI search with fallback embedding...";
       }
-
-      const model = await getEmbedder();
-      const imageUrl = URL.createObjectURL(searchPhoto);
-      const output = await model(imageUrl, { pooling: "mean", normalize: true });
-      URL.revokeObjectURL(imageUrl);
-      embedding = normalizeEmbedding(output);
     }
   } catch (error) {
     aiSearchMetaEl.textContent = "Could not prepare your search photo.";
