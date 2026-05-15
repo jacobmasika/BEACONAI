@@ -667,9 +667,7 @@ publicCaseForm.addEventListener("submit", async (event) => {
     reporter_relationship: reporterRelationshipInput.value.trim(),
     reporter_contact: reporterContactInput.value.trim(),
     missing_person_name: missingPersonNameInput.value.trim(),
-    // If a photo was attached, upload it to the server cache first to avoid
-    // sending a large base64 blob inside the main case submission.
-    missing_person_photo_cache_id: null,
+    missing_person_photo_data_url: photoDataUrl,
     missing_person_photo_embedding: photoEmbedding,
     missing_person_age: ageValue ? Number(ageValue) : null,
     missing_since_iso: missingSinceInput.value ? new Date(missingSinceInput.value).toISOString() : null,
@@ -690,23 +688,6 @@ publicCaseForm.addEventListener("submit", async (event) => {
   }
 
   try {
-    // If we have a photoDataUrl, upload it to the cache and send only the id.
-    if (photoDataUrl) {
-      try {
-        const upResp = await fetch(`${API_BASE}/public/cases/photo-upload`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ data_url: photoDataUrl }),
-        });
-        const upText = await upResp.text();
-        const upResult = upText ? JSON.parse(upText) : {};
-        if (!upResp.ok) throw new Error(upResult.error || "Photo upload failed");
-        payload.missing_person_photo_cache_id = upResult.photo_id;
-      } catch (err) {
-        console.warn("Photo upload failed, submitting without photo reference", err);
-      }
-    }
-
     const result = await postPublicCase(payload);
     publicCaseMetaEl.textContent = `Case report submitted. Reference ID: ${result.report_id}`;
     publicCaseForm.reset();

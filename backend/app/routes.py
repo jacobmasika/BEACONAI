@@ -113,44 +113,6 @@ def get_public_case_photo(report_id: str):
         return jsonify({"error": f"Failed to load photo: {str(e)}"}), 500
 
 
-@api_bp.post("/public/cases/photo-upload")
-def upload_public_case_photo():
-    backend_guard = _require_backend_available()
-    if backend_guard:
-        return backend_guard
-
-    payload = request.get_json(silent=True) or {}
-    data_url = payload.get("data_url")
-    if not isinstance(data_url, str) or not data_url.strip():
-        return jsonify({"error": "data_url is required"}), 400
-
-    try:
-        photo_id = current_app.cache_store.add_public_case_photo(data_url)
-        return jsonify({"photo_id": photo_id}), 201
-    except Exception as e:
-        return jsonify({"error": f"Failed to store photo: {str(e)}"}), 500
-
-
-@api_bp.get("/public/cases/photo/<photo_id>")
-def serve_cached_public_case_photo(photo_id: str):
-    backend_guard = _require_backend_available()
-    if backend_guard:
-        return backend_guard
-
-    try:
-        data_url = current_app.cache_store.get_public_case_photo(photo_id)
-        if not data_url:
-            return jsonify({"error": "photo not found"}), 404
-        photo_bytes, mime_type = _decode_data_url(data_url)
-        if not photo_bytes:
-            return jsonify({"error": "invalid photo data"}), 400
-        from flask import Response
-
-        return Response(photo_bytes, mimetype=mime_type)
-    except Exception as e:
-        return jsonify({"error": f"Failed to load cached photo: {str(e)}"}), 500
-
-
 @api_bp.post("/search/missing")
 def search_missing_persons():
     backend_guard = _require_backend_available()
@@ -337,17 +299,10 @@ def search_missing_persons():
                     "has_photo": bool(
                         row_payload.get("missing_person_photo_data_url")
                         or row_payload.get("missing_person_photo_embedding")
-                        or row_payload.get("missing_person_photo_cache_id")
                     ),
-                    "photo_url": (
-                        _public_case_photo_url(str(row.id))
-                        if row_payload.get("missing_person_photo_data_url")
-                        else (
-                            f"/api/public/cases/photo/{row_payload.get('missing_person_photo_cache_id')}"
-                            if row_payload.get("missing_person_photo_cache_id")
-                            else None
-                        )
-                    ),
+                    "photo_url": _public_case_photo_url(str(row.id))
+                    if row_payload.get("missing_person_photo_data_url")
+                    else None,
                     "similarity": similarity,
                     "score": (similarity if similarity is not None else 0.0) + keyword_score,
                 }
@@ -422,11 +377,8 @@ def submit_public_case_report():
         "reporter_relationship": payload["reporter_relationship"].strip(),
         "reporter_contact": payload["reporter_contact"].strip(),
         "missing_person_name": payload["missing_person_name"].strip(),
-        # Store photo data inline only for SQLite fallback. For Postgres (production),
-        # offload large base64 photo blobs to the local cache store and store a small
-        # reference id instead.
+        "missing_person_photo_data_url": payload.get("missing_person_photo_data_url"),
         "missing_person_photo_embedding": payload.get("missing_person_photo_embedding"),
-        "missing_person_photo_cache_id": None,
         "missing_person_age": payload.get("missing_person_age"),
         "missing_since_iso": payload.get("missing_since_iso"),
         "last_seen_location": payload["last_seen_location"].strip(),
@@ -435,24 +387,11 @@ def submit_public_case_report():
     }
 
     try:
-        # If backend is sqlite, we can keep the photo data in the payload.
         if current_app.db_backend == "sqlite":
-            # ensure local payload contains any photo data URL
-            if payload.get("missing_person_photo_data_url"):
-                sanitized_payload["missing_person_photo_data_url"] = payload.get("missing_person_photo_data_url")
             report_id = current_app.sqlite_db.add_public_case_report(sanitized_payload)
         else:
             from .extensions import db
             from .models import PublicCaseReport
-            # If a large base64 photo was provided in the original payload, offload it
-            # to the cache store to avoid inserting a huge JSONB column into Postgres.
-            if payload.get("missing_person_photo_data_url"):
-                try:
-                    photo_id = current_app.cache_store.add_public_case_photo(payload.get("missing_person_photo_data_url"))
-                    sanitized_payload["missing_person_photo_cache_id"] = photo_id
-                except Exception:
-                    # If cache store fails, continue without photo reference
-                    sanitized_payload["missing_person_photo_cache_id"] = None
 
             report = PublicCaseReport(
                 reporter_name=sanitized_payload["reporter_name"],
@@ -504,22 +443,12 @@ def list_public_case_reports():
                     "has_photo_embedding": bool(row.payload.get("missing_person_photo_embedding"))
                     if isinstance(row.payload, dict)
                     else False,
-                    "has_photo": bool(
-                        row.payload.get("missing_person_photo_data_url")
-                        or row.payload.get("missing_person_photo_embedding")
-                        or row.payload.get("missing_person_photo_cache_id")
-                    )
+                    "has_photo": bool(row.payload.get("missing_person_photo_data_url"))
                     if isinstance(row.payload, dict)
                     else False,
-                    "photo_url": (
-                        _public_case_photo_url(str(row.id))
-                        if isinstance(row.payload, dict) and row.payload.get("missing_person_photo_data_url")
-                        else (
-                            f"/api/public/cases/photo/{row.payload.get('missing_person_photo_cache_id')}"
-                            if isinstance(row.payload, dict) and row.payload.get("missing_person_photo_cache_id")
-                            else None
-                        )
-                    ),
+                    "photo_url": _public_case_photo_url(str(row.id))
+                    if isinstance(row.payload, dict) and row.payload.get("missing_person_photo_data_url")
+                    else None,
                     "missing_person_age": row.missing_person_age,
                     "missing_since_iso": row.missing_since_iso,
                     "last_seen_location": row.last_seen_location,
