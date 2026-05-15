@@ -58,13 +58,59 @@ def _validate_public_case_payload(payload: dict, vector_dims: int = 512) -> str 
         if isinstance(age, bool) or not isinstance(age, int) or age < 0:
             return "missing_person_age must be a non-negative integer"
 
-
+    photo_data_url = payload.get("missing_person_photo_data_url")
+    if photo_data_url is not None and not isinstance(photo_data_url, str):
+        return "missing_person_photo_data_url must be a string"
 
     photo_embedding = payload.get("missing_person_photo_embedding")
     if photo_embedding is not None and not _validate_embedding(photo_embedding, vector_dims):
         return f"missing_person_photo_embedding must be a numeric vector of length {vector_dims}"
 
     return None
+
+
+def _public_case_photo_url(report_id: str) -> str:
+    return f"/api/public/cases/{report_id}/photo"
+
+
+def _decode_data_url(data_url: str):
+    if not isinstance(data_url, str) or not data_url.startswith("data:") or "," not in data_url:
+        return None, None
+
+    header, encoded = data_url.split(",", 1)
+    mime_type = header[5:].split(";", 1)[0] or "application/octet-stream"
+
+    import base64
+
+    return base64.b64decode(encoded), mime_type
+
+
+@api_bp.get("/public/cases/<report_id>/photo")
+def get_public_case_photo(report_id: str):
+    backend_guard = _require_backend_available()
+    if backend_guard:
+        return backend_guard
+
+    try:
+        data_url = None
+        if current_app.db_backend == "sqlite":
+            data_url = current_app.sqlite_db.get_public_case_photo_data_url(report_id)
+        else:
+            from .models import PublicCaseReport
+
+            report = PublicCaseReport.query.filter_by(id=report_id).first()
+            payload = report.payload if report and isinstance(report.payload, dict) else {}
+            data_url = payload.get("missing_person_photo_data_url")
+
+        photo_bytes, mime_type = _decode_data_url(data_url)
+        if not photo_bytes:
+            return jsonify({"error": "photo not found"}), 404
+
+        from flask import Response
+
+        return Response(photo_bytes, mimetype=mime_type)
+    except Exception as e:
+        return jsonify({"error": f"Failed to load photo: {str(e)}"}), 500
 
 
 @api_bp.post("/search/missing")
@@ -251,8 +297,12 @@ def search_missing_persons():
                     "created_at": row.created_at.isoformat() if row.created_at else None,
                     "government_case_id": None,
                     "has_photo": bool(
-                        row_payload.get("missing_person_photo_embedding")
+                        row_payload.get("missing_person_photo_data_url")
+                        or row_payload.get("missing_person_photo_embedding")
                     ),
+                    "photo_url": _public_case_photo_url(str(row.id))
+                    if row_payload.get("missing_person_photo_data_url")
+                    else None,
                     "similarity": similarity,
                     "score": (similarity if similarity is not None else 0.0) + keyword_score,
                 }
@@ -327,6 +377,7 @@ def submit_public_case_report():
         "reporter_relationship": payload["reporter_relationship"].strip(),
         "reporter_contact": payload["reporter_contact"].strip(),
         "missing_person_name": payload["missing_person_name"].strip(),
+        "missing_person_photo_data_url": payload.get("missing_person_photo_data_url"),
         "missing_person_photo_embedding": payload.get("missing_person_photo_embedding"),
         "missing_person_age": payload.get("missing_person_age"),
         "missing_since_iso": payload.get("missing_since_iso"),
@@ -392,6 +443,12 @@ def list_public_case_reports():
                     "has_photo_embedding": bool(row.payload.get("missing_person_photo_embedding"))
                     if isinstance(row.payload, dict)
                     else False,
+                    "has_photo": bool(row.payload.get("missing_person_photo_data_url"))
+                    if isinstance(row.payload, dict)
+                    else False,
+                    "photo_url": _public_case_photo_url(str(row.id))
+                    if isinstance(row.payload, dict) and row.payload.get("missing_person_photo_data_url")
+                    else None,
                     "missing_person_age": row.missing_person_age,
                     "missing_since_iso": row.missing_since_iso,
                     "last_seen_location": row.last_seen_location,

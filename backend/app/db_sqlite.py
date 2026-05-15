@@ -244,7 +244,8 @@ class SQLiteDB:
                     "status": row["status"],
                     "created_at": row["created_at"],
                     "government_case_id": None,
-                    "missing_person_photo_data_url": payload.get("missing_person_photo_data_url"),
+                    "has_photo": bool(payload.get("missing_person_photo_data_url") or payload.get("missing_person_photo_embedding")),
+                    "photo_url": f"/api/public/cases/{row['id']}/photo" if payload.get("missing_person_photo_data_url") else None,
                     "similarity": float(similarity) if similarity is not None else None,
                     "score": combined_score,
                 }
@@ -416,7 +417,8 @@ class SQLiteDB:
                     "reporter_relationship": row["reporter_relationship"],
                     "reporter_contact": row["reporter_contact"],
                     "missing_person_name": row["missing_person_name"],
-                    "missing_person_photo_data_url": payload.get("missing_person_photo_data_url"),
+                    "has_photo": bool(payload.get("missing_person_photo_data_url") or payload.get("missing_person_photo_embedding")),
+                    "photo_url": f"/api/public/cases/{row['id']}/photo" if payload.get("missing_person_photo_data_url") else None,
                     "has_photo_embedding": bool(payload.get("missing_person_photo_embedding")),
                     "missing_person_age": row["missing_person_age"],
                     "missing_since_iso": row["missing_since_iso"],
@@ -428,6 +430,19 @@ class SQLiteDB:
             )
 
         return items
+
+    def get_public_case_photo_data_url(self, report_id: str) -> str | None:
+        with self._get_conn() as conn:
+            row = conn.execute(
+                "SELECT payload FROM public_case_reports WHERE id = ?",
+                (report_id,),
+            ).fetchone()
+
+        if not row:
+            return None
+
+        payload = json.loads(row["payload"]) if row["payload"] else {}
+        return payload.get("missing_person_photo_data_url")
 
     @staticmethod
     def _cosine_similarity(a: list[float], b: list[float]) -> float:

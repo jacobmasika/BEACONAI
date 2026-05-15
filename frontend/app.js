@@ -93,6 +93,14 @@ function withTimeout(promise, timeoutMs, message) {
   });
 }
 
+function resolveApiUrl(path) {
+  if (!path) {
+    return null;
+  }
+
+  return new URL(path, API_BASE).toString();
+}
+
 function normalizeVector(values) {
   const magnitude = Math.sqrt(values.reduce((sum, value) => sum + value * value, 0));
   if (!magnitude) {
@@ -491,7 +499,7 @@ async function ensurePublicCasePhotoEmbeddings() {
   const cases = Array.isArray(data.cases) ? data.cases : [];
 
   const pending = cases.filter(
-    (item) => item.missing_person_photo_data_url && !item.has_photo_embedding && item.report_id
+    (item) => item.photo_url && !item.has_photo_embedding && item.report_id
   );
 
   if (!pending.length) {
@@ -504,7 +512,7 @@ async function ensurePublicCasePhotoEmbeddings() {
   for (const item of pending) {
     try {
       const output = await withTimeout(
-        model(item.missing_person_photo_data_url, { pooling: "mean", normalize: true }),
+        model(resolveApiUrl(item.photo_url), { pooling: "mean", normalize: true }),
         MODEL_INFERENCE_TIMEOUT_MS,
         "Backfill embedding timeout"
       );
@@ -545,8 +553,8 @@ async function renderPublicCases() {
     data.cases.forEach((item) => {
       const row = document.createElement("article");
       row.className = "list-item";
-      const imageBlock = item.missing_person_photo_data_url
-        ? `<img class="case-photo" src="${item.missing_person_photo_data_url}" alt="${item.missing_person_name} photo" />`
+      const imageBlock = item.photo_url
+        ? `<img class="case-photo" src="${resolveApiUrl(item.photo_url)}" alt="${item.missing_person_name} photo" />`
         : "";
       row.innerHTML = `
         <div><strong>Missing Person:</strong> ${item.missing_person_name}</div>
@@ -659,6 +667,7 @@ publicCaseForm.addEventListener("submit", async (event) => {
     reporter_relationship: reporterRelationshipInput.value.trim(),
     reporter_contact: reporterContactInput.value.trim(),
     missing_person_name: missingPersonNameInput.value.trim(),
+    missing_person_photo_data_url: photoDataUrl,
     missing_person_photo_embedding: photoEmbedding,
     missing_person_age: ageValue ? Number(ageValue) : null,
     missing_since_iso: missingSinceInput.value ? new Date(missingSinceInput.value).toISOString() : null,
@@ -800,8 +809,8 @@ aiSearchForm.addEventListener("submit", async (event) => {
     result.results.forEach((item) => {
       const sourceLabel = item.source === "public_case_report" ? "Reported Cases" : "Official Missing Persons List";
       const caseId = item.government_case_id || item.id || "N/A";
-      const imageBlock = item.missing_person_photo_data_url
-        ? `<img class="case-photo" src="${item.missing_person_photo_data_url}" alt="${item.full_name}" />`
+      const imageBlock = item.photo_url
+        ? `<img class="case-photo" src="${resolveApiUrl(item.photo_url)}" alt="${item.full_name}" />`
         : "";
       const confidence = getConfidenceMeta(item.similarity);
       const similarityLabel =

@@ -25,3 +25,5 @@ Thumbs.db
 
 # Frontend local cache
 frontend/.cache/
+.vercel
+.env*.local
