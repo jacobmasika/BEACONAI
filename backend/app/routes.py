@@ -58,9 +58,7 @@ def _validate_public_case_payload(payload: dict, vector_dims: int = 512) -> str 
         if isinstance(age, bool) or not isinstance(age, int) or age < 0:
             return "missing_person_age must be a non-negative integer"
 
-    photo_data_url = payload.get("missing_person_photo_data_url")
-    if photo_data_url is not None and not isinstance(photo_data_url, str):
-        return "missing_person_photo_data_url must be a string"
+
 
     photo_embedding = payload.get("missing_person_photo_embedding")
     if photo_embedding is not None and not _validate_embedding(photo_embedding, vector_dims):
@@ -252,10 +250,8 @@ def search_missing_persons():
                     "status": row.status,
                     "created_at": row.created_at.isoformat() if row.created_at else None,
                     "government_case_id": None,
-                    "missing_person_photo_data_url": row_payload.get("missing_person_photo_data_url"),
                     "has_photo": bool(
-                        row_payload.get("missing_person_photo_data_url")
-                        or row_payload.get("missing_person_photo_embedding")
+                        row_payload.get("missing_person_photo_embedding")
                     ),
                     "similarity": similarity,
                     "score": (similarity if similarity is not None else 0.0) + keyword_score,
@@ -331,7 +327,6 @@ def submit_public_case_report():
         "reporter_relationship": payload["reporter_relationship"].strip(),
         "reporter_contact": payload["reporter_contact"].strip(),
         "missing_person_name": payload["missing_person_name"].strip(),
-        "missing_person_photo_data_url": payload.get("missing_person_photo_data_url"),
         "missing_person_photo_embedding": payload.get("missing_person_photo_embedding"),
         "missing_person_age": payload.get("missing_person_age"),
         "missing_since_iso": payload.get("missing_since_iso"),
@@ -394,12 +389,6 @@ def list_public_case_reports():
                     "reporter_relationship": row.reporter_relationship,
                     "reporter_contact": row.reporter_contact,
                     "missing_person_name": row.missing_person_name,
-                    "missing_person_photo_data_url": row.payload.get("missing_person_photo_data_url")
-                    if isinstance(row.payload, dict)
-                    else None,
-                    "has_photo": bool(row.payload.get("missing_person_photo_data_url"))
-                    if isinstance(row.payload, dict)
-                    else False,
                     "has_photo_embedding": bool(row.payload.get("missing_person_photo_embedding"))
                     if isinstance(row.payload, dict)
                     else False,

@@ -659,7 +659,6 @@ publicCaseForm.addEventListener("submit", async (event) => {
     reporter_relationship: reporterRelationshipInput.value.trim(),
     reporter_contact: reporterContactInput.value.trim(),
     missing_person_name: missingPersonNameInput.value.trim(),
-    missing_person_photo_data_url: photoDataUrl,
     missing_person_photo_embedding: photoEmbedding,
     missing_person_age: ageValue ? Number(ageValue) : null,
     missing_since_iso: missingSinceInput.value ? new Date(missingSinceInput.value).toISOString() : null,
